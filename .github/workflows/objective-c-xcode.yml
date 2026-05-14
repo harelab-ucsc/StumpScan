@@ -15,8 +15,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install CocoaPods dependencies
-        run: pod install
+      - name: Fetch opencv2.xcframework via CocoaPods
+        run: |
+          pod install
+          # pod install rewrites project.pbxproj to add CocoaPods integration;
+          # restore our hand-crafted version that links the xcframework directly.
+          git checkout StumpScan.xcodeproj/project.pbxproj
+
+      - name: Patch xcframework to iOS shallow bundle layout
+        run: |
+          FW_BASE="Pods/OpenCV-Dynamic-Framework/opencv2.xcframework"
+          for SLICE in ios-arm64 ios-arm64_x86_64-simulator; do
+            FW="${FW_BASE}/${SLICE}/opencv2.framework"
+            cp "${FW}/Resources/Info.plist" "${FW}/Info.plist"
+            plutil -insert CFBundleExecutable -string opencv2 "${FW}/Info.plist" 2>/dev/null || true
+            rm -rf "${FW}/Versions" "${FW}/Resources"
+          done
 
       - name: Build
         run: |
